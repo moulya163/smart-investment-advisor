@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Investment Advisor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f8; --card: #ffffff; --text: #1a2230; --muted: #667085;
+      --border: #e4e7ec; --accent: #1d4ed8; --up: #15803d; --down: #b42318;
+      --warn-bg: #fff8e6; --warn: #8a5a00;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 26px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    form { display: grid; grid-template-columns: 1.2fr 1.4fr 0.8fr 0.8fr auto; gap: 12px; align-items: end; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    button { padding: 10px 20px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .stat .k { font-size: 13px; color: var(--muted); }
+    .stat .v { font-size: 26px; font-weight: 700; margin-top: 6px; }
+    .stat .s { font-size: 13px; margin-top: 4px; color: var(--muted); }
+    .up { color: var(--up); } .down { color: var(--down); }
+    .error { background: #fef3f2; color: var(--down); border-color: #fecdca; }
+    .note { background: var(--warn-bg); color: var(--warn); border-color: #f5dea3; font-size: 14px; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .row:last-child { border-bottom: 0; }
+    .row span:first-child { color: var(--muted); }
+    h2 { font-size: 16px; margin: 0 0 12px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .legend i { display: inline-block; width: 16px; height: 3px; vertical-align: middle; margin-right: 6px; }
+    .disclaimer { font-size: 12px; color: var(--muted); text-align: center; margin-top: 24px; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 16px 0 20px; }
+    .tab { background: none; color: var(--muted); border-radius: 0; padding: 10px 16px; border-bottom: 2px solid transparent; font-weight: 500; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    form.f4 { grid-template-columns: 2fr 1.2fr 0.8fr 0.9fr auto; }
+    form.plain { display: block; }
+    .f3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 12px; }
+    .goalrow { display: grid; grid-template-columns: 2fr 1.4fr 0.8fr auto; gap: 12px; align-items: end; margin-top: 12px; }
+    button.ghost { background: #fff; color: var(--accent); border: 1px solid var(--border); }
+    button.ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ok { background: #ecfdf3; color: var(--up); border-color: #abefc6; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+    .bar { height: 6px; background: #eef0f3; border-radius: 3px; margin: 2px 0 8px; overflow: hidden; }
+    .bar div { height: 100%; background: var(--accent); }
+    .alloc { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin: 8px 0; }
+    .tag { font-size: 12px; font-weight: 500; color: var(--muted); background: #f2f4f7; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    @media (max-width: 760px) {
+      form, .grid, .two, form.f4, .f3, .goalrow { grid-template-columns: 1fr; }
+      .tabs { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+
+function money(value, currency) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-GB",
+    { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
+}
+
+function PriceChart({ history, forecast }) {
+  const W = 900, H = 260, P = 36;
+  const all = history.map(h => h.price).concat(forecast);
+  const min = Math.min(...all), max = Math.max(...all);
+  const pad = (max - min) * 0.1 || 1;
+  const lo = min - pad, hi = max + pad;
+  const n = history.length + forecast.length;
+  const x = i => P + (i / (n - 1)) * (W - 2 * P);
+  const y = v => H - P - ((v - lo) / (hi - lo)) * (H - 2 * P);
+  const histPts = history.map((h, i) => `${x(i)},${y(h.price)}`).join(" ");
+  const last = history.length - 1;
+  const fcPts = [`${x(last)},${y(history[last].price)}`]
+    .concat(forecast.map((p, i) => `${x(last + 1 + i)},${y(p)}`)).join(" ");
+  const ticks = [lo + pad, (lo + hi) / 2, hi - pad];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Price history and forecast">
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line x1={P} x2={W - P} y1={y(t)} y2={y(t)} stroke="#eef0f3" />
+            <text x={P - 6} y={y(t) + 4} fontSize="11" textAnchor="end" fill="#667085">{t.toFixed(0)}</text>
+          </g>
+        ))}
+        <polyline points={histPts} fill="none" stroke="#1d4ed8" strokeWidth="2.5" />
+        <polyline points={fcPts} fill="none" stroke="#e8590c" strokeWidth="2.5" strokeDasharray="6 5" />
+      </svg>
+      <div className="legend">
+        <span><i style={{ background: "#1d4ed8" }}></i>Last 60 trading days</span>
+        <span><i style={{ background: "#e8590c" }}></i>LSTM forecast (next 5 days)</span>
+      </div>
+    </div>
+  );
+}
+
+function ForecastTab() {
+  const [form, setForm] = useState({ ticker: "AAPL", salary: "1200000", salary_currency: "INR", invest_pct: "20" });
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const update = k => e => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setResult(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      setResult(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const r = result, sim = r && r.simulation;
+  const dir = v => (v >= 0 ? "up" : "down");
+  const sign = v => (v >= 0 ? "+" : "");
+
+  return (
+    <div>
+      <p className="sub">Enter a stock and your salary to see an LSTM price forecast and what investing part of your salary could look like.</p>
+
+      <div className="card">
+        <form onSubmit={submit}>
+          <div><label>Stock symbol</label>
+            <input value={form.ticker} onChange={update("ticker")} placeholder="AAPL, MSFT, RELIANCE.NS" required /></div>
+          <div><label>Annual salary</label>
+            <input type="number" min="1" value={form.salary} onChange={update("salary")} required /></div>
+          <div><label>Currency</label>
+            <select value={form.salary_currency} onChange={update("salary_currency")}>
+              <option>INR</option><option>GBP</option><option>USD</option>
+            </select></div>
+          <div><label>Invest %</label>
+            <input type="number" min="1" max="100" value={form.invest_pct} onChange={update("invest_pct")} required /></div>
+          <button disabled={loading}>{loading ? "Analysing..." : "Analyse"}</button>
+        </form>
+      </div>
+
+      {loading && <div className="card note">Fetching prices and running the model. If this stock hasn't been used before, a new model is trained first, which can take 1–3 minutes.</div>}
+      {error && <div className="card error">{error}</div>}
+
+      {r && (<>
+        {r.stale && <div className="card note">Live prices were unavailable, so this uses saved data up to {r.last_date}.</div>}
+        {r.model.newly_trained && <div className="card note">A new model was trained for {r.ticker} just now.</div>}
+
+        <div className="grid">
+          <div className="card stat"><div className="k">{r.ticker} current price</div>
+            <div className="v">{money(r.current_price, r.stock_currency)}</div>
+            <div className="s">As of {r.last_date} · {r.price_source}</div></div>
+          <div className="card stat"><div className="k">Predicted price in 5 trading days</div>
+            <div className={"v " + dir(r.predicted_change_pct)}>{money(r.forecast[r.forecast.length - 1], r.stock_currency)}</div>
+            <div className={"s " + dir(r.predicted_change_pct)}>{sign(r.predicted_change_pct)}{r.predicted_change_pct}%</div></div>
+          <div className="card stat"><div className="k">Predicted profit / loss</div>
+            <div className={"v " + dir(sim.profit_loss)}>{sign(sim.profit_loss)}{money(sim.profit_loss, sim.salary_currency)}</div>
+            <div className="s">on {money(sim.invested, sim.salary_currency)} invested</div></div>
+        </div>
+
+        <div className="card"><h2>Price history and forecast</h2>
+          <PriceChart history={r.history} forecast={r.forecast} /></div>
+
+        <div className="two">
+          <div className="card"><h2>Salary-based investment</h2>
+            <div className="row"><span>Amount invested ({form.invest_pct}% of salary)</span><span>{money(sim.invested, sim.salary_currency)}</span></div>
+            {sim.salary_currency !== sim.stock_currency &&
+              <div className="row"><span>Converted to {sim.stock_currency} (1 {sim.salary_currency} = {sim.exchange_rate.toFixed(4)})</span><span>{money(sim.invested_in_stock_currency, sim.stock_currency)}</span></div>}
+            <div className="row"><span>Shares bought</span><span>{sim.shares}</span></div>
+            <div className="row"><span>Predicted value in 5 days</span><span>{money(sim.predicted_value, sim.salary_currency)}</span></div>
+            <div className="row"><span>Predicted profit / loss</span><span className={dir(sim.profit_loss)}>{sign(sim.profit_loss)}{money(sim.profit_loss, sim.salary_currency)}</span></div>
+          </div>
+          <div className="card"><h2>How reliable is this model?</h2>
+            <div className="row"><span>Model error (RMSE, test period)</span><span>{r.model.rmse}</span></div>
+            <div className="row"><span>Naive baseline error ("tomorrow = today")</span><span>{r.model.baseline_rmse}</span></div>
+            <div className="row"><span>Beats baseline</span><span>{r.model.beats_baseline ? "Yes" : "No"}</span></div>
+            <div className="row"><span>Up/down direction accuracy</span><span>{r.model.directional_accuracy}%</span></div>
+            <p className="sub" style={{ margin: "12px 0 0", fontSize: 13 }}>Daily stock prices are close to random, so treat this forecast as one signal, not a guarantee.</p>
+          </div>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+async function postJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+function FrontierChart({ r }) {
+  const W = 900, H = 340, P = 48;
+  const pts = r.random.concat(r.frontier, r.stocks.map(s => ({ vol: s.volatility, ret: s.expected_return })));
+  const vols = pts.map(p => p.vol), rets = pts.map(p => p.ret);
+  const vMin = Math.min(...vols), vMax = Math.max(...vols);
+  const rMin = Math.min(...rets), rMax = Math.max(...rets);
+  const vPad = (vMax - vMin) * 0.08 || 1, rPad = (rMax - rMin) * 0.08 || 1;
+  const x = v => P + ((v - (vMin - vPad)) / (vMax - vMin + 2 * vPad)) * (W - 2 * P);
+  const y = t => H - P - ((t - (rMin - rPad)) / (rMax - rMin + 2 * rPad)) * (H - 2 * P);
+  const sMin = Math.min(...r.random.map(p => p.sharpe)), sMax = Math.max(...r.random.map(p => p.sharpe));
+  const shade = s => 0.15 + 0.6 * ((s - sMin) / ((sMax - sMin) || 1));
+  const frontier = r.frontier.map(p => `${x(p.vol)},${y(p.ret)}`).join(" ");
+  const ms = r.max_sharpe, mv = r.min_volatility;
+  const xt = [vMin, (vMin + vMax) / 2, vMax], yt = [rMin, (rMin + rMax) / 2, rMax];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Efficient frontier">
+        {yt.map((t, i) => <g key={"y" + i}>
+          <line x1={P} x2={W - P} y1={y(t)} y2={y(t)} stroke="#eef0f3" />
+          <text x={P - 6} y={y(t) + 4} fontSize="11" textAnchor="end" fill="#667085">{t.toFixed(0)}%</text></g>)}
+        {xt.map((v, i) => <text key={"x" + i} x={x(v)} y={H - P + 18} fontSize="11" textAnchor="middle" fill="#667085">{v.toFixed(0)}%</text>)}
+        <text x={W / 2} y={H - 6} fontSize="12" textAnchor="middle" fill="#667085">Risk (annual volatility)</text>
+        <text x={14} y={H / 2} fontSize="12" textAnchor="middle" fill="#667085" transform={`rotate(-90 14 ${H / 2})`}>Expected annual return</text>
+        {r.random.map((p, i) => <circle key={i} cx={x(p.vol)} cy={y(p.ret)} r="2.5" fill="#1d4ed8" opacity={shade(p.sharpe)} />)}
+        <polyline points={frontier} fill="none" stroke="#1a2230" strokeWidth="2" />
+        {r.stocks.map(s => <g key={s.ticker}>
+          <circle cx={x(s.volatility)} cy={y(s.expected_return)} r="4" fill="#667085" />
+          <text x={x(s.volatility) + 7} y={y(s.expected_return) + 4} fontSize="11" fill="#344054">{s.ticker}</text></g>)}
+        <circle cx={x(mv.volatility)} cy={y(mv.expected_return)} r="8" fill="#15803d" stroke="#fff" strokeWidth="2" />
+        <circle cx={x(ms.volatility)} cy={y(ms.expected_return)} r="8" fill="#e8590c" stroke="#fff" strokeWidth="2" />
+      </svg>
+      <div className="legend">
+        <span><i style={{ background: "#1d4ed8" }}></i>Random mixes (darker = better Sharpe)</span>
+        <span><i style={{ background: "#1a2230" }}></i>Efficient frontier</span>
+        <span><i style={{ background: "#e8590c" }}></i>Max Sharpe</span>
+        <span><i style={{ background: "#15803d" }}></i>Min volatility</span>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioTab() {
+  const [form, setForm] = useState({ tickers: "AAPL, MSFT, GOOGL, AMZN", amount: "240000", currency: "INR", risk_free_rate: "4" });
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const update = k => e => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setResult(null);
+    try { setResult(await postJSON("/api/optimize", form)); }
+    catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  const r = result;
+  const Summary = ({ title, p, color }) => (
+    <div className="card stat">
+      <div className="k"><span className="dot" style={{ background: color }}></span>{title}</div>
+      <div className="v">{p.expected_return}%</div>
+      <div className="s">expected return · {p.volatility}% risk · Sharpe {p.sharpe}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <p className="sub">Enter 2–8 stocks from the same market. Modern Portfolio Theory finds the mix with the best return for its risk, using 5 years of daily prices.</p>
+      <div className="card">
+        <form className="f4" onSubmit={submit}>
+          <div><label>Stocks (comma separated)</label>
+            <input value={form.tickers} onChange={update("tickers")} required /></div>
+          <div><label>Amount to invest</label>
+            <input type="number" min="1" value={form.amount} onChange={update("amount")} required /></div>
+          <div><label>Currency</label>
+            <select value={form.currency} onChange={update("currency")}>
+              <option>INR</option><option>GBP</option><option>USD</option>
+            </select></div>
+          <div><label>Risk-free rate %</label>
+            <input type="number" step="0.1" min="0" max="20" value={form.risk_free_rate} onChange={update("risk_free_rate")} required /></div>
+          <button disabled={loading}>{loading ? "Optimising..." : "Optimise"}</button>
+        </form>
+      </div>
+
+      {loading && <div className="card note">Loading price history. Stocks you haven't used before are downloaded first, which takes a few seconds each.</div>}
+      {error && <div className="card error">{error}</div>}
+
+      {r && (<>
+        <div className="grid">
+          <Summary title="Max Sharpe (best risk-adjusted)" p={r.max_sharpe} color="#e8590c" />
+          <Summary title="Minimum volatility (safest)" p={r.min_volatility} color="#15803d" />
+          <Summary title="Equal weight (for comparison)" p={r.equal_weight} color="#98a2b3" />
+        </div>
+
+        <div className="card"><h2>Efficient frontier</h2>
+          <FrontierChart r={r} /></div>
+
+        <div className="two">
+          {[["Max Sharpe allocation", r.max_sharpe], ["Minimum volatility allocation", r.min_volatility]].map(([title, p]) => (
+            <div className="card" key={title}><h2>{title}</h2>
+              {p.weights.map(w => (
+                <div key={w.ticker}>
+                  <div className="row"><span>{w.ticker}</span><span>{w.weight}% · {money(w.amount, r.currency)}</span></div>
+                  <div className="bar"><div style={{ width: w.weight + "%" }}></div></div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="card"><h2>Individual stocks ({r.from_date} to {r.to_date})</h2>
+          <table>
+            <thead><tr><th>Stock</th><th>Expected annual return</th><th>Annual volatility (risk)</th></tr></thead>
+            <tbody>{r.stocks.map(s => <tr key={s.ticker}><td>{s.ticker}</td><td>{s.expected_return}%</td><td>{s.volatility}%</td></tr>)}</tbody>
+          </table>
+          <p className="sub" style={{ margin: "12px 0 0", fontSize: 13 }}>Expected returns are based on the past 5 years and are noisy estimates. Past performance does not guarantee future returns. Risk-free rate used: {r.risk_free_rate}%.</p>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+function GoalsTab() {
+  const [salary, setSalary] = useState("1200000");
+  const [currency, setCurrency] = useState("INR");
+  const [risk, setRisk] = useState("medium");
+  const [goals, setGoals] = useState([
+    { name: "Buy a house", target: "3000000", years: "5" },
+    { name: "Education", target: "500000", years: "2" },
+  ]);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const setGoal = (i, k) => e => setGoals(goals.map((g, j) => j === i ? { ...g, [k]: e.target.value } : g));
+  const addGoal = () => goals.length < 5 && setGoals([...goals, { name: "", target: "", years: "" }]);
+  const removeGoal = i => setGoals(goals.filter((_, j) => j !== i));
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setResult(null);
+    try { setResult(await postJSON("/api/goals", { salary, currency, risk, goals })); }
+    catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  const r = result;
+  return (
+    <div>
+      <p className="sub">Add your financial goals. The planner suggests an asset mix for each one and the monthly investment needed, then checks it against 20% of your salary (the 50/30/20 rule).</p>
+      <form className="plain" onSubmit={submit}>
+        <div className="card">
+          <div className="f3">
+            <div><label>Annual salary</label>
+              <input type="number" min="1" value={salary} onChange={e => setSalary(e.target.value)} required /></div>
+            <div><label>Currency</label>
+              <select value={currency} onChange={e => setCurrency(e.target.value)}>
+                <option>INR</option><option>GBP</option><option>USD</option>
+              </select></div>
+            <div><label>Risk tolerance</label>
+              <select value={risk} onChange={e => setRisk(e.target.value)}>
+                <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+              </select></div>
+          </div>
+          <h2 style={{ marginTop: 20 }}>Goals</h2>
+          {goals.map((g, i) => (
+            <div className="goalrow" key={i}>
+              <div><label>Goal name</label><input value={g.name} onChange={setGoal(i, "name")} placeholder="e.g. Car" required /></div>
+              <div><label>Target amount</label><input type="number" min="1" value={g.target} onChange={setGoal(i, "target")} required /></div>
+              <div><label>Years</label><input type="number" min="0.5" max="40" step="0.5" value={g.years} onChange={setGoal(i, "years")} required /></div>
+              <button type="button" className="ghost" onClick={() => removeGoal(i)} disabled={goals.length === 1}>Remove</button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+            <button type="button" className="ghost" onClick={addGoal} disabled={goals.length >= 5}>+ Add goal</button>
+            <button disabled={loading}>{loading ? "Planning..." : "Plan my goals"}</button>
+          </div>
+        </div>
+      </form>
+
+      {error && <div className="card error">{error}</div>}
+
+      {r && (<>
+        <div className={"card " + (r.fits_budget ? "ok" : "note")}>
+          <strong>{money(r.total_monthly, r.currency)} per month</strong> is needed for all goals, which is {r.share_of_salary}% of your monthly salary ({money(r.monthly_salary, r.currency)}).{" "}
+          {r.fits_budget
+            ? <>This fits within your 20% savings budget of {money(r.savings_budget, r.currency)}.</>
+            : <>This is more than your 20% savings budget of {money(r.savings_budget, r.currency)}. Consider longer timelines, smaller targets, or prioritising goals.</>}
+        </div>
+
+        {r.goals.map(g => (
+          <div className="card" key={g.name + g.target}>
+            <h2>{g.name}: {money(g.target, r.currency)} in {g.years} years <span className="tag">{g.horizon}-term</span></h2>
+            <div className="alloc">
+              <div style={{ width: g.allocation.equity + "%", background: "#1d4ed8" }}></div>
+              <div style={{ width: g.allocation.debt + "%", background: "#e8590c" }}></div>
+              <div style={{ width: g.allocation.cash + "%", background: "#98a2b3" }}></div>
+            </div>
+            <div className="legend" style={{ marginBottom: 12 }}>
+              <span><i style={{ background: "#1d4ed8" }}></i>Equity {g.allocation.equity}%</span>
+              <span><i style={{ background: "#e8590c" }}></i>Debt {g.allocation.debt}%</span>
+              <span><i style={{ background: "#98a2b3" }}></i>Cash {g.allocation.cash}%</span>
+            </div>
+            <div className="row"><span>Monthly investment needed</span><span><strong>{money(g.monthly, r.currency)}</strong></span></div>
+            <div className="row"><span>Expected annual return of this mix</span><span>{g.expected_return}%</span></div>
+            <div className="row"><span>Total you put in</span><span>{money(g.total_invested, r.currency)}</span></div>
+            <div className="row"><span>Growth from returns</span><span className="up">{money(g.growth, r.currency)}</span></div>
+          </div>
+        ))}
+
+        <p className="sub" style={{ fontSize: 13 }}>Assumed annual returns: equity {r.assumed_returns.equity}%, debt {r.assumed_returns.debt}%, cash {r.assumed_returns.cash}%. These are illustrative assumptions, not predictions. Shorter goals use safer mixes because there is less time to recover from a market fall.</p>
+      </>)}
+    </div>
+  );
+}
+
+function App() {
+  const tabs = [["forecast", "Stock forecast"], ["portfolio", "Portfolio optimiser"], ["goals", "Goal planner"]];
+  const [tab, setTab] = useState("forecast");
+  return (
+    <div className="wrap">
+      <h1>Smart Investment Advisor</h1>
+      <div className="tabs" role="tablist">
+        {tabs.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
+      {/* All tabs stay mounted so each keeps its inputs and results when you switch */}
+      <div style={{ display: tab === "forecast" ? "block" : "none" }}><ForecastTab /></div>
+      <div style={{ display: tab === "portfolio" ? "block" : "none" }}><PortfolioTab /></div>
+      <div style={{ display: tab === "goals" ? "block" : "none" }}><GoalsTab /></div>
+      <p className="disclaimer">Educational project only. Not financial advice.</p>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
