@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated data and trained models (recreated automatically)
+data/
+models/
+
+# Environment and editor files
+.venv/
+venv/
+.env
+.vscode/
+.DS_Store
+Thumbs.db
